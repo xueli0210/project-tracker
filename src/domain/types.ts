@@ -17,15 +17,33 @@ export interface Task {
   priority: Priority;
   createdAt: string; // ISO 8601
   completedAt: string | null; // ISO 8601, set iff status === 'done'
+  deadline: string | null; // ISO 8601 date (YYYY-MM-DD), or null if none
 }
 
 /** On-disk shape. Bump `version` and add a migration when this changes. */
 export interface Database {
-  version: 1;
+  version: 2;
   projects: Project[];
   tasks: Task[];
 }
 
 export function emptyDatabase(): Database {
-  return { version: 1, projects: [], tasks: [] };
+  return { version: 2, projects: [], tasks: [] };
+}
+
+// Persisted shape from any prior version; fields added later are optional here.
+type StoredTask = Omit<Task, 'deadline'> & { deadline?: string | null };
+export interface StoredDatabase {
+  version: number;
+  projects: Project[];
+  tasks: StoredTask[];
+}
+
+// v1 → v2: tasks gained `deadline`.
+export function migrate(db: StoredDatabase): Database {
+  return {
+    version: 2,
+    projects: db.projects,
+    tasks: db.tasks.map((t) => ({ ...t, deadline: t.deadline ?? null })),
+  };
 }

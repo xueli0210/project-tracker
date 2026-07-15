@@ -10,6 +10,12 @@ is persisted as a single JSON file. State is not a database or a server; it's on
 file at `~/.project-tracker/data.json` (override the directory with the
 `PROJECT_TRACKER_HOME` environment variable, which the tests rely on).
 
+Separately, each project gets a **human-facing workspace folder** (tracker.csv,
+notepad.md, details/) under a *visible* root — `~/Documents/project-tracker/` by
+default, overridable with `PROJECT_TRACKER_DOCS`. The data file (hidden, app-
+owned) and the workspaces (visible, user-owned) are intentionally split; see
+`config.ts` for the resolution precedence.
+
 ## Commands
 
 ```bash
@@ -41,14 +47,15 @@ imports something higher.
   file-backed implementation. A `read()` → mutate → `write()` cycle is one
   logical transaction; `JsonStore.write` is atomic (temp file + `rename`).
   `Store` also carries the workspace verbs — `scaffoldProject`,
-  `writeWorkspaceFile`, `appendWorkspaceFile`, `archiveProjectWorkspace` — which
-  materialize a per-project `DOCS/<slug>/` folder (layout and file rendering are
-  pure functions in `domain/workspace.ts`: `projectWorkspace`, `trackerCsv`,
-  `noteEntry`). `MemoryStore` no-ops all of them so command/CLI tests stay
-  filesystem-free; the real behavior is covered by `jsonStore.test.ts` in a temp
-  dir. `tracker.csv` is regenerated from tasks on every task mutation
-  (`syncTracker`); `pt note add` appends to `notepad.md`; archiving moves the
-  folder to `DOCS/.archived/`.
+  `writeWorkspaceFile`, `appendWorkspaceFile`, `archiveProjectWorkspace`, plus
+  `workspacePath` (for display) — which materialize a per-project `<slug>/`
+  folder under the shared docs root that `JsonStore` receives as its second
+  constructor arg (layout and file rendering are pure functions in
+  `domain/workspace.ts`: `projectWorkspace`, `trackerCsv`, `noteEntry`).
+  `MemoryStore` no-ops all of them so command/CLI tests stay filesystem-free; the
+  real behavior is covered by `jsonStore.test.ts` in a temp dir. `tracker.csv` is
+  regenerated from tasks on every task mutation (`syncTracker`); `pt note add`
+  appends to `notepad.md`; archiving moves the folder to `.archived/`.
 - **`src/commands/`** — application operations (`addTask`, `listTasks`,
   `setTaskStatus`, `addProject`, …). They depend on the `Store` **interface
   only**, return plain data, and `throw new Error(<user-facing message>)` on bad

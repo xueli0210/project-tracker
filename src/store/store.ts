@@ -22,6 +22,8 @@ export interface Store {
   appendWorkspaceFile(folder: string, relPath: string, contents: string): Promise<void>;
   /** Retire a project's workspace folder (moved aside, not destroyed). */
   archiveProjectWorkspace(folder: string): Promise<void>;
+  /** Human-readable location of a project's workspace folder, for display. */
+  workspacePath(folder: string): string;
 }
 
 /** In-memory Store for tests. Clones on read/write so callers cannot alias state. */
@@ -45,4 +47,9 @@ export class MemoryStore implements Store {
   async writeWorkspaceFile(): Promise<void> {}
   async appendWorkspaceFile(): Promise<void> {}
   async archiveProjectWorkspace(): Promise<void> {}
+
+  /** No real location in memory; echo the folder name for display. */
+  workspacePath(folder: string): string {
+    return folder;
+  }
 }

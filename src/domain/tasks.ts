@@ -11,6 +11,12 @@ export function isPriority(value: number): value is Priority {
   return (PRIORITIES as readonly number[]).includes(value);
 }
 
+// Normalize a deadline to YYYY-MM-DD, or null if it is not a parseable date.
+export function normalizeDeadline(input: string): string | null {
+  const d = new Date(input);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+}
+
 /**
  * Return a copy of `task` with a new status, keeping `completedAt` consistent.
  * Pure: does not mutate its input. This is the single source of truth for the

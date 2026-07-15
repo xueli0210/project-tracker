@@ -32,6 +32,16 @@ describe('cli', () => {
     expect(lines.at(-1)).toMatch(/Specify a project/);
   });
 
+  it('accepts a valid --deadline and rejects an unparseable one', async () => {
+    const { call, lines } = harness();
+    expect(await call('project add Website')).toBe(0);
+
+    expect(await call('task add Launch --project Website --deadline 2026-08-01')).toBe(0);
+
+    expect(await call('task add Launch --project Website --deadline nope')).toBe(1);
+    expect(lines.at(-1)).toMatch(/Invalid deadline/);
+  });
+
   it('reports an error and non-zero exit for an unknown project', async () => {
     const { call, lines } = harness();
     expect(await call('task add x --project ghost')).toBe(1);

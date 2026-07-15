@@ -11,6 +11,7 @@ function task(overrides: Partial<Task>): Task {
     priority: 2,
     createdAt: '2026-07-14T00:00:00.000Z',
     completedAt: null,
+    deadline: null,
     ...overrides,
   };
 }
@@ -39,19 +40,27 @@ describe('projectWorkspace', () => {
     const ws = projectWorkspace('Website Redesign', new Date('2026-07-14T12:00:00Z'));
     const byPath = Object.fromEntries(ws.files.map((f) => [f.path, f.contents]));
 
-    expect(byPath['tracker.csv']).toBe('Task ID,Title,Status,Priority,Created,Completed\n');
+    expect(byPath['tracker.csv']).toBe(
+      'Task ID,Title,Status,Priority,Deadline,Created,Completed\n',
+    );
     expect(byPath['notepad.md']).toBe('# Website Redesign — Notes\n\n_Created 2026-07-14_\n');
   });
 });
 
 describe('trackerCsv', () => {
   it('renders header-only for a project with no tasks', () => {
-    expect(trackerCsv([])).toBe('Task ID,Title,Status,Priority,Created,Completed\n');
+    expect(trackerCsv([])).toBe('Task ID,Title,Status,Priority,Deadline,Created,Completed\n');
   });
 
-  it('orders by priority then creation and stamps completion dates', () => {
+  it('orders by priority then creation, with deadline and completion dates', () => {
     const csv = trackerCsv([
-      task({ id: 't_low', title: 'low', priority: 3, createdAt: '2026-07-14T00:00:00.000Z' }),
+      task({
+        id: 't_low',
+        title: 'low',
+        priority: 3,
+        createdAt: '2026-07-14T00:00:00.000Z',
+        deadline: '2026-08-01',
+      }),
       task({
         id: 't_hi',
         title: 'high',
@@ -62,15 +71,15 @@ describe('trackerCsv', () => {
       }),
     ]);
     expect(csv).toBe(
-      'Task ID,Title,Status,Priority,Created,Completed\n' +
-        't_hi,high,done,1,2026-07-13,2026-07-15\n' +
-        't_low,low,todo,3,2026-07-14,\n',
+      'Task ID,Title,Status,Priority,Deadline,Created,Completed\n' +
+        't_hi,high,done,1,,2026-07-13,2026-07-15\n' +
+        't_low,low,todo,3,2026-08-01,2026-07-14,\n',
     );
   });
 
   it('quotes and escapes titles containing commas or quotes', () => {
     const csv = trackerCsv([task({ id: 't_x', title: 'Ship v1, "final"' })]);
-    expect(csv).toContain('t_x,"Ship v1, ""final""",todo,2,2026-07-14,\n');
+    expect(csv).toContain('t_x,"Ship v1, ""final""",todo,2,,2026-07-14,\n');
   });
 });
 

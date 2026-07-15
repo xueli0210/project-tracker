@@ -1,7 +1,7 @@
 import { appendFile, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import type { Database } from '../domain/types.js';
-import { emptyDatabase } from '../domain/types.js';
+import type { Database, StoredDatabase } from '../domain/types.js';
+import { emptyDatabase, migrate } from '../domain/types.js';
 import type { ProjectWorkspace } from '../domain/workspace.js';
 import type { Store } from './store.js';
 
@@ -9,14 +9,21 @@ import type { Store } from './store.js';
  * File-backed Store. Writes go to a temp file then `rename` over the target so
  * a crash mid-write can never leave a half-written database. A missing file is
  * treated as an empty database (first run).
+ *
+ * `docsRoot` is the shared, human-facing workspace directory (see
+ * `config.docsRoot`) — distinct from where `data.json` lives. Every project's
+ * folder is created directly beneath it.
  */
 export class JsonStore implements Store {
-  constructor(private readonly filePath: string) {}
+  constructor(
+    private readonly filePath: string,
+    private readonly docsRoot: string,
+  ) {}
 
   async read(): Promise<Database> {
     try {
       const raw = await readFile(this.filePath, 'utf8');
-      return JSON.parse(raw) as Database;
+      return migrate(JSON.parse(raw) as StoredDatabase);
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
         return emptyDatabase();
@@ -33,13 +40,13 @@ export class JsonStore implements Store {
   }
 
   /**
-   * Create the project's workspace under a `DOCS/` directory that sits beside
-   * the data file (so it honors `PROJECT_TRACKER_HOME`). Directories are made
-   * recursively (idempotent); seed files use the `wx` flag so a re-scaffold
-   * never overwrites notes the user has since edited.
+   * Create the project's workspace folder beneath the shared docs root.
+   * Directories are made recursively (idempotent), so the root is created once
+   * and reused; seed files use the `wx` flag so a re-scaffold never overwrites
+   * notes the user has since edited.
    */
   async scaffoldProject(workspace: ProjectWorkspace): Promise<void> {
-    const root = this.workspaceDir(workspace.folder);
+    const root = this.workspacePath(workspace.folder);
     for (const dir of [root, ...workspace.dirs.map((d) => join(root, d))]) {
       await mkdir(dir, { recursive: true });
     }
@@ -53,20 +60,20 @@ export class JsonStore implements Store {
   }
 
   async writeWorkspaceFile(folder: string, relPath: string, contents: string): Promise<void> {
-    const root = this.workspaceDir(folder);
+    const root = this.workspacePath(folder);
     await mkdir(root, { recursive: true });
     await writeFile(join(root, relPath), contents, 'utf8');
   }
 
   async appendWorkspaceFile(folder: string, relPath: string, contents: string): Promise<void> {
-    const root = this.workspaceDir(folder);
+    const root = this.workspacePath(folder);
     await mkdir(root, { recursive: true });
     await appendFile(join(root, relPath), contents, 'utf8');
   }
 
   async archiveProjectWorkspace(folder: string): Promise<void> {
-    const src = this.workspaceDir(folder);
-    const dest = this.workspaceDir(join('.archived', folder));
+    const src = this.workspacePath(folder);
+    const dest = this.workspacePath(join('.archived', folder));
     try {
       await mkdir(dirname(dest), { recursive: true });
       await rm(dest, { recursive: true, force: true }); // replace any prior archive
@@ -76,8 +83,8 @@ export class JsonStore implements Store {
     }
   }
 
-  /** Absolute path of a project's workspace under `DOCS/`, beside the data file. */
-  private workspaceDir(folder: string): string {
-    return join(dirname(this.filePath), 'DOCS', folder);
+  /** Absolute path of a project's workspace folder under the shared docs root. */
+  workspacePath(folder: string): string {
+    return join(this.docsRoot, folder);
   }
 }

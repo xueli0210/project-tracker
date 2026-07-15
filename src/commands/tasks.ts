@@ -8,6 +8,7 @@ export interface AddTaskInput {
   projectRef: string;
   title: string;
   priority?: Priority;
+  deadline?: string | null;
 }
 
 export async function addTask(
@@ -32,6 +33,7 @@ export async function addTask(
     priority: input.priority ?? 2,
     createdAt: now.toISOString(),
     completedAt: null,
+    deadline: input.deadline ?? null,
   };
   db.tasks.push(task);
   await store.write(db);

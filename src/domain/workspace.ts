@@ -18,7 +18,7 @@ import type { Task } from './types.js';
 export const TRACKER_FILE = 'tracker.csv';
 export const NOTEPAD_FILE = 'notepad.md';
 
-const TRACKER_HEADER = 'Task ID,Title,Status,Priority,Created,Completed';
+const TRACKER_HEADER = 'Task ID,Title,Status,Priority,Deadline,Created,Completed';
 
 export interface WorkspaceFile {
   /** Path relative to the project's workspace folder, e.g. `tracker.csv`. */
@@ -71,6 +71,7 @@ export function trackerCsv(tasks: Task[]): string {
         csvField(t.title),
         t.status,
         String(t.priority),
+        t.deadline ?? '',
         t.createdAt.slice(0, 10),
         t.completedAt ? t.completedAt.slice(0, 10) : '',
       ].join(','),
