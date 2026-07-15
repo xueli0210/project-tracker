@@ -21,6 +21,17 @@ describe('cli', () => {
     expect(lines.at(-1)).toMatch(/\[ \] P1 {2}Design home/);
   });
 
+  it('adds a note to a project, and requires --project', async () => {
+    const { call, lines } = harness();
+    expect(await call('project add Website')).toBe(0);
+
+    expect(await call('note add Kickoff went well --project Website')).toBe(0);
+    expect(lines.at(-1)).toBe('Added note to Website');
+
+    expect(await call('note add orphaned thought')).toBe(1);
+    expect(lines.at(-1)).toMatch(/Specify a project/);
+  });
+
   it('reports an error and non-zero exit for an unknown project', async () => {
     const { call, lines } = harness();
     expect(await call('task add x --project ghost')).toBe(1);

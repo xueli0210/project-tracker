@@ -40,6 +40,15 @@ imports something higher.
   interface plus `MemoryStore` (used by tests); `jsonStore.ts` is the
   file-backed implementation. A `read()` → mutate → `write()` cycle is one
   logical transaction; `JsonStore.write` is atomic (temp file + `rename`).
+  `Store` also carries the workspace verbs — `scaffoldProject`,
+  `writeWorkspaceFile`, `appendWorkspaceFile`, `archiveProjectWorkspace` — which
+  materialize a per-project `DOCS/<slug>/` folder (layout and file rendering are
+  pure functions in `domain/workspace.ts`: `projectWorkspace`, `trackerCsv`,
+  `noteEntry`). `MemoryStore` no-ops all of them so command/CLI tests stay
+  filesystem-free; the real behavior is covered by `jsonStore.test.ts` in a temp
+  dir. `tracker.csv` is regenerated from tasks on every task mutation
+  (`syncTracker`); `pt note add` appends to `notepad.md`; archiving moves the
+  folder to `DOCS/.archived/`.
 - **`src/commands/`** — application operations (`addTask`, `listTasks`,
   `setTaskStatus`, `addProject`, …). They depend on the `Store` **interface
   only**, return plain data, and `throw new Error(<user-facing message>)` on bad

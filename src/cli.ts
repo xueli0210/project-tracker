@@ -1,7 +1,9 @@
+import { addNote } from './commands/notes.js';
 import { addProject, archiveProject, listProjects } from './commands/projects.js';
 import { addTask, listTasks, setTaskStatus } from './commands/tasks.js';
 import { isPriority, isTaskStatus } from './domain/tasks.js';
 import type { Priority, Task, TaskStatus } from './domain/types.js';
+import { projectSlug } from './domain/workspace.js';
 import type { Store } from './store/store.js';
 
 const HELP = `pt — personal project & task tracker
@@ -17,10 +19,13 @@ Usage:
   pt task done <id>                  Mark a task done
   pt task reopen <id>                Move a task back to todo
 
+  pt note add <text> --project <ref> Append a dated note to the project notepad
+
   pt help                            Show this help
 
 Flags: --project/-p, --status/-s, --priority. A <ref> is a project id or name.
-Data lives at ~/.project-tracker/data.json (override with PROJECT_TRACKER_HOME).`;
+Data lives at ~/.project-tracker/data.json (override with PROJECT_TRACKER_HOME).
+Each project gets a DOCS/<slug>/ folder (tracker.csv, notepad.md, details/).`;
 
 interface ParsedArgs {
   positionals: string[];
@@ -91,6 +96,9 @@ export async function run(
     if (group === 'task') {
       return await runTask(action, rest, flags, store, out);
     }
+    if (group === 'note') {
+      return await runNote(action, rest, flags, store, out);
+    }
     out(`Unknown command: ${group}. Run \`pt help\`.`);
     return 1;
   } catch (err) {
@@ -108,13 +116,14 @@ async function runProject(
   if (action === 'add') {
     const project = await addProject(store, rest.join(' '));
     out(`Added project ${project.name} (${project.id})`);
+    out(`  Workspace: DOCS/${projectSlug(project.name)}/`);
     return 0;
   }
   if (action === 'archive') {
     const ref = rest[0];
     if (!ref) throw new Error('Specify a project id or name');
     const project = await archiveProject(store, ref);
-    out(`Archived project ${project.name}`);
+    out(`Archived project ${project.name} (workspace moved to DOCS/.archived/)`);
     return 0;
   }
   if (action === 'list' || action === undefined) {
@@ -182,5 +191,23 @@ async function runTask(
   }
 
   out(`Unknown task command: ${action}. Run \`pt help\`.`);
+  return 1;
+}
+
+async function runNote(
+  action: string | undefined,
+  rest: string[],
+  flags: ParsedArgs['flags'],
+  store: Store,
+  out: (line: string) => void,
+): Promise<number> {
+  if (action === 'add') {
+    const projectRef = flagString(flags.project, flags.p);
+    if (!projectRef) throw new Error('Specify a project with --project <ref>');
+    const project = await addNote(store, projectRef, rest.join(' '));
+    out(`Added note to ${project.name}`);
+    return 0;
+  }
+  out(`Unknown note command: ${action}. Run \`pt help\`.`);
   return 1;
 }
