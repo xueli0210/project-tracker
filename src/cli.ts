@@ -1,7 +1,9 @@
+import { addNote } from './commands/notes.js';
 import { addProject, archiveProject, listProjects } from './commands/projects.js';
 import { addTask, listTasks, setTaskStatus } from './commands/tasks.js';
-import { isPriority, isTaskStatus } from './domain/tasks.js';
+import { isPriority, isTaskStatus, normalizeDeadline } from './domain/tasks.js';
 import type { Priority, Task, TaskStatus } from './domain/types.js';
+import { projectSlug } from './domain/workspace.js';
 import type { Store } from './store/store.js';
 
 const HELP = `pt — personal project & task tracker
@@ -11,16 +13,20 @@ Usage:
   pt project list                    List projects
   pt project archive <ref>           Archive a project (by id or name)
 
-  pt task add <title> --project <ref> [--priority 1|2|3]
+  pt task add <title> --project <ref> [--priority 1|2|3] [--deadline YYYY-MM-DD]
   pt task list [--project <ref>] [--status todo|doing|done]
   pt task start <id>                 Mark a task in progress
   pt task done <id>                  Mark a task done
   pt task reopen <id>                Move a task back to todo
 
+  pt note add <text> --project <ref> Append a dated note to the project notepad
+
   pt help                            Show this help
 
-Flags: --project/-p, --status/-s, --priority. A <ref> is a project id or name.
-Data lives at ~/.project-tracker/data.json (override with PROJECT_TRACKER_HOME).`;
+Flags: --project/-p, --status/-s, --priority, --deadline/-d. A <ref> is an id or name.
+Data lives at ~/.project-tracker/data.json (override with PROJECT_TRACKER_HOME).
+Each project gets a folder under ~/Documents/project-tracker/<slug>/
+(tracker.csv, notepad.md, details/); override with PROJECT_TRACKER_DOCS.`;
 
 interface ParsedArgs {
   positionals: string[];
@@ -91,6 +97,9 @@ export async function run(
     if (group === 'task') {
       return await runTask(action, rest, flags, store, out);
     }
+    if (group === 'note') {
+      return await runNote(action, rest, flags, store, out);
+    }
     out(`Unknown command: ${group}. Run \`pt help\`.`);
     return 1;
   } catch (err) {
@@ -108,13 +117,16 @@ async function runProject(
   if (action === 'add') {
     const project = await addProject(store, rest.join(' '));
     out(`Added project ${project.name} (${project.id})`);
+    out(`  Workspace: ${store.workspacePath(projectSlug(project.name))}`);
     return 0;
   }
   if (action === 'archive') {
     const ref = rest[0];
     if (!ref) throw new Error('Specify a project id or name');
     const project = await archiveProject(store, ref);
-    out(`Archived project ${project.name}`);
+    out(
+      `Archived project ${project.name} (workspace moved to ${store.workspacePath('.archived')})`,
+    );
     return 0;
   }
   if (action === 'list' || action === undefined) {
@@ -150,7 +162,14 @@ async function runTask(
       if (!isPriority(n)) throw new Error('Priority must be 1, 2, or 3');
       priority = n;
     }
-    const task = await addTask(store, { projectRef, title: rest.join(' '), priority });
+    let deadline: string | undefined;
+    const rawDeadline = flagString(flags.deadline, flags.d);
+    if (rawDeadline !== undefined) {
+      const normalized = normalizeDeadline(rawDeadline);
+      if (!normalized) throw new Error(`Invalid deadline: ${rawDeadline} (use YYYY-MM-DD)`);
+      deadline = normalized;
+    }
+    const task = await addTask(store, { projectRef, title: rest.join(' '), priority, deadline });
     out(`Added task ${task.title} (${task.id})`);
     return 0;
   }
@@ -182,5 +201,23 @@ async function runTask(
   }
 
   out(`Unknown task command: ${action}. Run \`pt help\`.`);
+  return 1;
+}
+
+async function runNote(
+  action: string | undefined,
+  rest: string[],
+  flags: ParsedArgs['flags'],
+  store: Store,
+  out: (line: string) => void,
+): Promise<number> {
+  if (action === 'add') {
+    const projectRef = flagString(flags.project, flags.p);
+    if (!projectRef) throw new Error('Specify a project with --project <ref>');
+    const project = await addNote(store, projectRef, rest.join(' '));
+    out(`Added note to ${project.name}`);
+    return 0;
+  }
+  out(`Unknown note command: ${action}. Run \`pt help\`.`);
   return 1;
 }

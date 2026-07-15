@@ -2,12 +2,13 @@ import { newId } from '../domain/ids.js';
 import { withStatus } from '../domain/tasks.js';
 import type { Priority, Task, TaskStatus } from '../domain/types.js';
 import type { Store } from '../store/store.js';
-import { resolveProject } from './projects.js';
+import { resolveProject, syncTracker } from './projects.js';
 
 export interface AddTaskInput {
   projectRef: string;
   title: string;
   priority?: Priority;
+  deadline?: string | null;
 }
 
 export async function addTask(
@@ -32,9 +33,11 @@ export async function addTask(
     priority: input.priority ?? 2,
     createdAt: now.toISOString(),
     completedAt: null,
+    deadline: input.deadline ?? null,
   };
   db.tasks.push(task);
   await store.write(db);
+  await syncTracker(store, project, db.tasks);
   return task;
 }
 
@@ -74,5 +77,7 @@ export async function setTaskStatus(
   const updated = withStatus(existing, status, now.toISOString());
   db.tasks[idx] = updated;
   await store.write(db);
+  const project = db.projects.find((p) => p.id === updated.projectId);
+  if (project) await syncTracker(store, project, db.tasks);
   return updated;
 }
